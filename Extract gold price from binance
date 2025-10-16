@@ -1,0 +1,37 @@
+from binance.client import Client
+import pandas as pd
+import datetime
+
+# Renseigne ta clé API ici
+api_key = 'your_api_key_here'
+api_secret = 'your_api_secret_here'
+
+client = Client(api_key, api_secret)
+
+# === PARAMÈTRES ===
+symbol = 'PAXGUSDT'
+interval = Client.KLINE_INTERVAL_5MINUTE
+start_time = datetime.datetime(2022, 6, 1)
+end_time = datetime.datetime(2025, 10, 1)
+
+klines = client.get_historical_klines(
+    symbol=symbol,
+    interval=interval,
+    start_str=start_time.strftime('%Y-%m-%d %H:%M:%S'),
+    end_str=end_time.strftime('%Y-%m-%d %H:%M:%S')
+)
+
+# === CONVERSION EN DATAFRAME ===
+df = pd.DataFrame(klines, columns=[
+    'Open Time', 'Open', 'High', 'Low', 'Close', 'Volume',
+    'Close Time', 'Quote Asset Volume', 'Number of Trades',
+    'Taker Buy Base Volume', 'Taker Buy Quote Volume', 'Ignore'
+])
+
+df['Open Time'] = pd.to_datetime(df['Open Time'], unit='ms')
+df.set_index('Open Time', inplace=True)
+df[['Open', 'High', 'Low', 'Close', 'Volume']] = df[['Open', 'High', 'Low', 'Close', 'Volume']].astype(float)
+
+# === SAUVEGARDE CSV ===
+df.to_csv("PAXGUSDT_5m.csv")
+print("✅ Données PAXG/USDT 5m enregistrées dans 'PAXGUSDT_5m.csv'")
