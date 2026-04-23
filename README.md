@@ -1,34 +1,155 @@
-🧠 Strategy Logic: Gold (PAXGUSDT) Intraday Momentum
+# Gold Trend-Momentum Strategy
 
-📈 Entry Criteria
+> A systematic, long-only strategy on Gold Futures (GC=F) that combines EMA crossover
+> trend-following with Bollinger Band squeeze breakouts, using dynamic ATR-based stops
+> and a trailing stop to let winning trades run.
 
-This strategy enters a long position based on momentum confirmation and volume anomalies, with the following conditions evaluated on 15-minute candles:
-	1.	MACD Histogram Momentum (on 15m candles):
-	•	The MACD histogram must be above a threshold (> 0.1)
-	•	The MACD momentum (change in histogram) must be positive and significant (> 0.01)
-	•	This ensures the entry is backed by recent momentum acceleration.
-	2.	Volume Spike on Small Candle (5m candles):
-	•	A volume spike is detected when the volume is greater than 12× the 24h rolling average.
-	•	The candle body must be small (body < 0.1%)
-	•	This is a contrarian entry signal indicating potential reversal after aggressive buying or selling on low price movement.
-	3.	Cooldown Period:
-	•	After each trade, the system waits at least COOLDOWN_BARS = 12 bars (i.e. 1 hour on 5m candles) before taking a new position.
+---
 
-⸻
+## Strategy Thesis
 
-📉 Exit Criteria
+Gold is one of the most trend-persistent assets in financial markets. Unlike equities,
+gold's multi-year trends are driven by real interest rates, USD cycles, and geopolitical
+risk premiums — structural forces that are slow to reverse.
 
-Once in position, exits are monitored on 5-minute candles:
-	1.	Take Profit:
-	•	Exit if the position reaches a gain of +1%
-	2.	Stop Loss:
-	•	Exit if the loss reaches -0.5%
-	3.	Volume Anomaly Exit (optional but active):
-	•	If a volume spike + small candle is detected after entry AND the trade is currently losing, exit early.
+This strategy exploits two distinct gold momentum patterns:
 
-⚠️ Note: There is no MACD-based exit in this version. The logic focuses purely on price-based and anomaly-based exits.
-	     Transaction Fees: 0% assumed
+1. **EMA crossover trends** — when the 21-day EMA crosses above the 55-day EMA while
+   price trades above EMA-200, it signals the onset of a sustained trend. MACD and RSI
+   confirm the momentum regime before entry.
 
-<img width="1106" height="437" alt="Capture d’écran 2025-10-17 à 18 14 26" src="https://github.com/user-attachments/assets/d172f76f-57d6-41a2-8c68-c5f4aea1ad30" />
-<img width="337" height="170" alt="Capture d’écran 2025-10-17 à 18 14 12" src="https://github.com/user-attachments/assets/dc29ecac-7b2c-4263-aa70-d1d1388bdac2" />
-<img width="484" height="68" alt="Capture d’écran 2025-10-17 à 18 13 43" src="https://github.com/user-attachments/assets/08158871-ac73-4497-a036-10c84eb0d8a1" />
+2. **Volatility squeeze breakouts** — periods of low volatility (Bollinger Band width < 1.5%)
+   followed by a directional breakout above the upper band identify high-conviction,
+   explosive moves with favourable risk/reward.
+
+The **ATR-based trailing stop** is the core risk management innovation: rather than a
+fixed take-profit, it lets winning positions compound as gold trends, only exiting when
+the trend genuinely reverses.
+
+---
+
+## Methodology
+
+### Entry Conditions
+
+**Primary — EMA Trend System (all must be true):**
+
+| Condition | Description |
+|-----------|-------------|
+| Price > EMA(200) | Secular uptrend — not a bear market |
+| EMA(21) > EMA(55) | Medium-term trend is bullish |
+| RSI(14) > 50 | Positive momentum confirmed |
+| MACD histogram > 0 | Momentum is accelerating |
+
+**Secondary — Bollinger Band Squeeze Breakout:**
+
+| Condition | Description |
+|-----------|-------------|
+| Price > EMA(200) | Uptrend filter applies |
+| BB width < 1.5% of price | Market was in compression |
+| Close breaks above prior upper BB | Directional breakout |
+
+### Exit Conditions
+
+| Condition | Description |
+|-----------|-------------|
+| Price ≤ entry − 2.5×ATR(14) | Initial stop-loss (fixed at entry) |
+| Price ≤ rolling_high − 3.0×ATR(14) | Trailing stop — locks in profits |
+| EMA(21) crosses below EMA(55) | Trend reversal confirmed |
+| RSI(14) < 38 | Momentum collapse |
+
+### Risk Management
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Position size | 2% equity at risk | Consistent risk sizing per trade |
+| Initial stop | 2.5×ATR below entry | Adapts to current gold volatility |
+| Trailing stop | 3.0×ATR below high-water | Lets winners run |
+| Circuit-breaker | −12% rolling 60-day DD | Prevents deep portfolio drawdowns |
+| Cooldown | 5 bars after exit | Avoids immediate re-entry after loss |
+| Fees | 0.02% per side | Realistic futures commission |
+| Slippage | 0.03% per side | Conservative execution assumption |
+
+### Data
+
+| Field | Value |
+|-------|-------|
+| Source | Yahoo Finance (`GC=F` — COMEX Gold Futures, adjusted) |
+| Frequency | Daily |
+| Period | 2015-01-01 → 2024-12-31 (10-year backtest) |
+
+---
+
+## Backtest Results
+
+> Run `python main.py` to reproduce all results and charts.
+
+| Metric | Strategy | Gold B&H |
+|--------|----------|----------|
+| Annualized Return | *see output* | — |
+| Sharpe Ratio | *see output* | — |
+| Sortino Ratio | *see output* | — |
+| Max Drawdown | *see output* | — |
+| Calmar Ratio | *see output* | — |
+| Win Rate | *see output* | — |
+| Profit Factor | *see output* | — |
+
+### Generated Charts (in `./charts/`)
+
+| File | Description |
+|------|-------------|
+| `equity_curve.png` | Growth of $1 vs Gold buy-and-hold (log scale, outperformance shaded) |
+| `drawdown.png` | Underwater equity for strategy and benchmark |
+| `trades.png` | Price + EMA bands with shaded trade periods and entry/exit markers |
+| `summary_table.png` | Complete performance metrics table |
+
+---
+
+## Limitations & Risks
+
+- **Futures roll bias**: GC=F uses front-month contracts. Yahoo Finance adjusts prices
+  for rolls, but this introduces small artefacts that may slightly inflate performance.
+- **Trend-following drag**: All EMA systems underperform in flat, choppy markets.
+  The EMA-200 filter mitigates but does not eliminate false entries.
+- **Leverage not modelled**: Gold futures embed 10–20× leverage in practice. This
+  strategy models notional exposure only; actual margin requirements not considered.
+- **Tail event risk**: Gold can gap sharply (central bank rate decisions, geopolitical
+  shocks). Stop-losses in real markets execute at the first available price after the gap.
+- **Parameter sensitivity**: ATR multiples and EMA periods reflect professional defaults
+  from commodity trend-following literature, not in-sample optimization.
+
+---
+
+## How to Run
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Run the full backtest and generate charts
+python main.py
+```
+
+> No local data files needed — prices are downloaded automatically from Yahoo Finance.
+
+### Project Structure
+
+```
+├── config.py         # All strategy parameters (edit here only)
+├── data.py           # Data fetching (Yahoo Finance, GC=F)
+├── indicators.py     # EMA, RSI, MACD, ATR, Bollinger Bands
+├── signals.py        # Entry/exit signal generation (no lookahead)
+├── backtest.py       # Event-driven engine + ATR trailing stop + stats
+├── visualize.py      # 4 professional charts
+├── main.py           # Entry point
+├── requirements.txt
+└── charts/           # Generated after running main.py
+```
+
+---
+
+## Disclaimer
+
+This repository is for educational and research purposes only.
+Past backtest performance does not guarantee future results.
+Commodity futures trading involves substantial leverage and risk of loss.
